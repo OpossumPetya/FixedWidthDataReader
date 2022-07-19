@@ -1,0 +1,6 @@
+8.0
+4
+1	SQLCHAR		0	13	""	1	Subscriber_EBID			SQL_Latin1_General_Cp437_Bin
+2	SQLCHAR		0	1	""	2	Action_Code			SQL_Latin1_General_Cp437_Bin
+3	SQLCHAR		0	14	""	3	GTIN			SQL_Latin1_General_Cp437_Bin
+4	SQLCHAR		0	30	"\r\n"	4	Proprietary_Code		SQL_Latin1_General_Cp437_Bin
