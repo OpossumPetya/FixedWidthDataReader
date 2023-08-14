@@ -6,11 +6,12 @@
 # - format file is BCP generated format file
 
 use v5.32;
+# use strict;
 use warnings;
+use Fcntl 'SEEK_SET';
 use Getopt::Long;
 use Term::ANSIColor;
-use Fcntl 'SEEK_SET';
-use Data::Printer;
+# use Data::Printer;
 
 my %config = (
     frmFile => undef,
@@ -34,7 +35,7 @@ sub print_usage {
     USAGE: perl script.pl [-t] [-nc] -f FormatFile.fmt -d DataFile [-s SearchTerm]
     
       -f,  --format FILE    Specify format file
-      -d,  --data FILE      Specify plain text data file
+      -d,  --data FILE      Specify plain text data file; a data string is also accepted
       -s,  --search         Search/filter term; checks all fields. Allows regexes
                             Case insesitive by default; use (?c) flag to make case sensitive
                             Other flags: https://www.regular-expressions.info/modifiers.html
@@ -48,18 +49,11 @@ sub print_usage {
 sub print_value {
     my ($field_name, $field_value, $field_names_column_width) = @_;
 
-    if ($config{no_colored_output})
-    {
-        print "$field_name [". length($field_value) ."]: ";
-        print ' ' x ( $field_names_column_width - length($field_name) - length(length($field_value)) );
-        say '['. $field_value .'] ';
-    }
-    else {
-        print colored ['bright_cyan'], $field_name;
-        print colored ['white'], ' ['. length($field_value) .']: ';
-        print ' ' x ( $field_names_column_width - length($field_name) - length(length($field_value)) );
-        say '['. colored(['black on_bright_yellow'], $field_value) .'] ';
-    }
+    print colored ['bright_cyan'], $field_name;
+    print colored ['white'], ' ['. length($field_value) .']: ';
+    print ' ' x ( $field_names_column_width - length($field_name) - length(length($field_value)) );
+    say '['. colored(['black on_bright_yellow'], $field_value) .'] ';
+
 }
 
 ############################################
@@ -83,7 +77,7 @@ use constant {
 
 GetOptions (
     'format|f=s' => \$config{frmFile},      # path to format file
-    'data|d=s'   => \$config{dataFile},     # path to data file
+    'data|d=s'   => \$config{dataFile},     # path to data file OR a string with data
     'search|s=s' => \$config{search_term},  # filter output by this term
     'top|t'      => \$config{showTop},      # process top N rows (see %config)
     'nocolor|nc' => \$config{no_colored_output},  # do not color output (useful for redirecting to a file)
@@ -91,6 +85,8 @@ GetOptions (
 ) or die "Error in command line arguments\n" ;
 
 print_usage unless $config{frmFile} and $config{dataFile};
+
+$ENV{NO_COLOR} = 1 if $config{no_colored_output};
 
 
 ######### READ FORMAT FILE #################
@@ -135,15 +131,17 @@ $unpackString = trim($unpackString);
 
 ######### READ DATA FILE ###################
 
-open my $dh, '<', $config{dataFile} or die $!;
+# if it's a file - open file; otherwise open a string as a file
+my $open_this = $config{dataFile} !~ /\n/ && -f $config{dataFile} ? $config{dataFile} : \$config{dataFile};
+open my $dh, '<:crlf', $open_this or die $!;
 
 # check if data conforms to format file
 my $line = <$dh>;
 chomp $line;
 if (length($line) != $dataLength) {
     say colored ['bright_red on_black'], "\nERROR: Data length mismatch!";
-    say "Expected: $dataLength chars (Format file: $config{frmFile}";
-    say "Actual:   ".length($line)." chars (Format file: $config{dataFile}";
+    say "Expected: $dataLength chars (Format file: $config{frmFile})";
+    say "Actual:   ".length($line)." chars (Data file: $config{dataFile})";
     exit 1;
 }
 
@@ -159,7 +157,7 @@ while (my $line = <$dh>) {
     }
     
     if (not $config{search_term} or ( $config{search_term} and $line =~ qr/$config{search_term}/i )) {        
-        say "\n--- ". $dh->input_line_number ." (line length is ". length($line) ." chars; expexted ". $dataLength ." chars) ---------------";
+        say "\n--- ". $dh->input_line_number ." (line length is ". length($line) ." chars; expected ". $dataLength ." chars) ---------------";
         my $i = 0;
         for my $val ( unpack($unpackString, $line) ) {
             print_value 
